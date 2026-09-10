@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ВЮ "СВ" Журнал браків</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #1a1f2e;
+    color: #e2e8f0;
+    padding: 20px 16px;
+  }
+  .container { max-width: 450px; margin: 0 auto; }
+  .header { text-align: center; margin-bottom: 20px; }
+  .header h1 { font-size: 1.3rem; color: #f8fafc; text-transform: uppercase; }
+  .accent-line { width: 40px; height: 3px; background: #e85d26; margin: 8px auto; border-radius: 2px; }
+
+  .card {
+    background: #242938;
+    border: 1px solid #2e3548;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 12px;
+  }
+  .section-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #e85d26;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .field { margin-bottom: 12px; }
+  label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 5px; }
+  
+  select, input {
+    width: 100%;
+    background: #1a1f2e;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    color: #f1f5f9;
+    font-size: 1rem;
+    padding: 10px;
+    outline: none;
+  }
+  select:focus, input:focus { border-color: #e85d26; }
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* ПІДКАЗКА ТА РЕЗУЛЬТАТ (КОЛОНКОВИЙ ПОРЯДОК) */
+  .brak-hint, .brak-parsed {
+    display: grid;
+    /* Головна фішка: заповнюємо спочатку колонку, а не рядок */
+    grid-auto-flow: column; 
+    /* Встановлюємо 6 рядків (щоб 11 категорій влізли у 2 колонки: 6 в першу, 5 в другу) */
+    grid-template-rows: repeat(6, auto); 
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 15px;
+    background: #1a1f2e;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    color: #64748b;
+    border: 1px solid #2e3548;
+  }
+
+  .brak-parsed {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin-top: 10px;
+    gap: 6px 10px;
+  }
+
+  .brak-tag {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 6px 10px;
+    display: flex;
+    justify-content: space-between;
+    color: #cbd5e1;
+  }
+  .brak-tag.error { border-color: #ef4444; color: #fca5a5; }
+  .brak-tag b { color: #e85d26; min-width: 18px; display: inline-block; }
+  .brak-tag .val { font-weight: 700; color: #f1f5f9; }
+
+  .btn-submit {
+    width: 100%;
+    background: #e85d26;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .btn-submit:disabled { background: #334155; opacity: 0.6; }
+
+  .status {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+    display: none;
+    font-size: 0.85rem;
+  }
+  .status.ok { display: block; background: #064e3b; color: #6ee7b7; }
+  .status.err { display: block; background: #450a0a; color: #a5fcb9; }
+  .status.loading { display: block; background: #1e293b; color: #94a3b8; }
+
+  /* --- Блок результатів (з'являється лише після успішного запису) --- */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .summary-item {
+    background: #1a1f2e;
+    border: 1px solid #2e3548;
+    border-top: 3px solid #e85d26;
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .summary-item .lbl { font-size: 0.68rem; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; }
+  .summary-item .formula { font-size: 0.6rem; color: #64748b; font-family: monospace; margin-bottom: 6px; }
+  .summary-item .num { font-size: 1.5rem; font-weight: 700; color: #f8fafc; }
+  .total-line {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #94a3b8;
+  }
+  .total-line b { color: #22c55e; font-size: 1.2rem; }
+  .meta-line {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-align: center;
+    margin-top: -4px;
+    margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>Журнал браків</h1>
+    <div class="accent-line"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Інформація про зміну та продукцію</div>
+    <div class="field">
+      <label>Майстер</label>
+      <select id="master">
+        <option value="">— Виберіть —</option>
+        <option>Кутненко</option>
+        <option>Кучков</option>
+        <option>Лисенко</option>
+        <option>Лісовська</option>
+        <option>Марченко</option>
+      </select>
+    </div>
+    <div class="row-2">
+      <div class="field">
+        <label>Продукція</label>
+        <select id="product" onchange="updateSeria()">
+          <option value="">— Оберіть —</option>
+          <option>ReO 950</option>
+          <option>ReO 1050</option>
+          <option>ReO 1500</option>
+          <option>ReO Лимон</option>
+          <option>Ізота</option>
+          <option>Емпаті</option>
+        </select>
+      </div>
+      <div class="field">
+        <label id="seriaLabel">№ серії (Наприклад: 9, 91)</label>
+        <input type="number" id="seriaNum" min="1" placeholder="1" oninput="updateSeria()">
+        <input type="text" id="seriaManual" placeholder="напр. 16/06/26-3" oninput="updateSeria()" style="display:none; margin-top:8px;">
+      </div>
+    </div>
+    <div class="field" style="display:flex; align-items:center; gap:8px; margin-top:-4px;">
+      <input type="checkbox" id="manualSeria" onchange="toggleSeriaMode()" style="width:auto; margin:0;">
+      <label style="margin:0; font-size:0.7rem; color:#94a3b8;">Ввести повний номер серії вручну (інший шаблон / інша доба)</label>
+    </div>
+    <div id="seriaPreview" style="font-size: 0.8rem; text-align: center; color: #94a3b8;">Оберіть дані</div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">
+      Внесіть браки згідно списку в журналі
+      <span id="counter" style="color: #64748b">0 / 11</span>
+    </div>
+    
+
+    <div class="field" style="margin-top: 15px;">
+      <label>Числа через кому (11 значень)</label>
+      <input type="text" id="brakLine" placeholder="0, 0, 5, 10..." oninput="parseBrak()" autocomplete="off" inputmode="decimal">
+    </div>
+
+    <div class="brak-parsed" id="brakParsed"></div>
+  </div>
+
+  <button class="btn-submit" id="btnSend" onclick="sendData()">Надіслати</button>
+  <div id="status" class="status"></div>
+  <div id="tgWarning" style="display:none; margin-top:10px; text-align:center; font-size:0.75rem; color:#fca5a5;">
+    ⚠️ Відкрийте цю форму через кнопку в Telegram-боті — деякі функції недоступні у звичайному браузері.
+  </div>
+
+  <div class="card" id="resultCard" style="display:none;">
+    <div class="section-label">Підсумок браків</div>
+    <div class="meta-line" id="resultMeta"></div>
+    <div class="summary-grid" id="summaryGrid"></div>
+    <div class="total-line">Всього браку: <b id="totalBrak">0</b></div>
+  </div>
+</div>
+
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx4X-Dz0wBmKNNsyd2v01wgD8kLoJoAj54oVuAxt2mIYrVoYaDgoasqoV1YC-Plbg3yJw/exec";
+const BRAK_TYPES = ["кришка", "флакон", "замивка", "видув", "етикетка", "включення", "без кришки", "деф. кришка", "деф. флакон", "недолив", "стікер"];
+
+// --- Telegram Web App init ---
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  // Підлаштування фону/шапки під тему Telegram (тут лишаємо власну темну тему форми)
+  try { tg.setHeaderColor("#1a1f2e"); } catch(e) {}
+  try { tg.setBackgroundColor("#1a1f2e"); } catch(e) {}
+} else {
+  document.getElementById("tgWarning").style.display = "block";
+}
+
+function haptic(type) {
+  if (!tg || !tg.HapticFeedback) return;
+  if (type === "success" || type === "error" || type === "warning") {
+    tg.HapticFeedback.notificationOccurred(type);
+  } else {
+    tg.HapticFeedback.impactOccurred(type || "light");
+  }
+}
+
+function toggleSeriaMode() {
+  const manual = document.getElementById("manualSeria").checked;
+  document.getElementById("seriaNum").style.display = manual ? "none" : "block";
+  document.getElementById("seriaManual").style.display = manual ? "block" : "none";
+  document.getElementById("seriaLabel").textContent = manual ? "Номер серії (вручну)" : "№ серії (Наприклад: 9, 91)";
+  updateSeria();
+}
+
+function updateSeria() {
+  const target = document.getElementById("seriaPreview");
+  const manual = document.getElementById("manualSeria").checked;
+
+  if (manual) {
+    const val = document.getElementById("seriaManual").value.trim();
+    if (!val) { target.innerHTML = "Оберіть дані"; return; }
+    target.innerHTML = `Серія: <b style="color:#e85d26; font-family:monospace;">${val}</b>`;
+    return;
+  }
+
+  const p = document.getElementById("product").value;
+  const n = document.getElementById("seriaNum").value;
+  if (!p || !n) { target.innerHTML = "Оберіть дані"; return; }
+  const d = new Date();
+  const ds = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`;
+  const pref = p === "ReO Лимон" ? "L" : "";
+  const pref1 = p === "Емпаті" ? "L" : "";
+  target.innerHTML = `Серія: <b style="color:#e85d26; font-family:monospace;">${pref}${pref1}${ds}-${n}</b>`;
+}
+
+function parseBrak() {
+  const valString = document.getElementById("brakLine").value;
+  const raw = valString.split(',').map(s => s.trim()).filter(s => s !== "");
+  const cont = document.getElementById("brakParsed");
+  const cnt = document.getElementById("counter");
+  
+  cont.innerHTML = "";
+  cnt.textContent = `${raw.length} / 11`;
+  cnt.style.color = raw.length === 11 ? "#22c55e" : "#ef4444";
+
+  BRAK_TYPES.forEach((name, i) => {
+    const val = raw[i];
+    const ok = val !== undefined && val !== "" && !isNaN(val);
+    const tag = document.createElement("div");
+    tag.className = `brak-tag ${!ok && raw.length > i ? 'error' : ''}`;
+    tag.innerHTML = `<span><b>${i+1}.</b> ${name}</span> <span class="val">${ok ? val : '?'}</span>`;
+    cont.appendChild(tag);
+  });
+}
+
+async function sendData() {
+  const master = document.getElementById("master").value;
+  const product = document.getElementById("product").value;
+  const manual = document.getElementById("manualSeria").checked;
+  const num = document.getElementById("seriaNum").value;
+  const manualVal = document.getElementById("seriaManual").value.trim();
+  const raw = document.getElementById("brakLine").value.split(',').map(s => s.trim()).filter(s => s !== "");
+
+  if (!master || !product || (manual ? !manualVal : !num)) { showStatus("Заповніть інформацію!", "err"); haptic("error"); return; }
+  if (raw.length !== 11) { showStatus(`Введено ${raw.length} з 11 чисел!`, "err"); haptic("error"); return; }
+
+  const braky = raw.map(v => parseInt(v));
+  const totalBrak = braky.reduce((a, b) => a + b, 0);
+  const seria = document.getElementById("seriaPreview").innerText.replace("Серія: ", "");
+
+  const btn = document.getElementById("btnSend");
+  btn.disabled = true;
+
+  try {
+    showStatus("Надсилаємо...", "loading");
+    await fetch(SCRIPT_URL, {
+      method: "POST",
+      mode: "no-cors",
+      body: JSON.stringify({ master, product, seria, braky, totalBrak, timestamp: new Date().toISOString() })
+    });
+    showStatus("✓ Успішно збережено!", "ok");
+    haptic("success");
+    showSummary(master, product, seria, braky, totalBrak);
+    document.getElementById("brakLine").value = "";
+    document.getElementById("seriaNum").value = "";
+    document.getElementById("seriaManual").value = "";
+    updateSeria();
+    parseBrak();
+  } catch (e) {
+    console.error("Помилка відправки на SCRIPT_URL:", e);
+    showStatus("Помилка зв'язку", "err");
+    haptic("error");
+    document.getElementById("resultCard").style.display = "none";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Виводиться ТІЛЬКИ після успішного запису в таблицю (викликається з sendData вище)
+function showSummary(master, product, seria, braky, totalBrak) {
+  const [D, E, F, G, H, I, J, K, L, M, N] = braky;
+
+  const kryshka  = D + I + K + L + M;
+  const flakon   = E + F + G + I + J + K + L + M;
+  const etyketka = H;
+  const stiker   = N;
+
+  const results = [
+    { label: "Загальна кришка", formula: "D+I+K+L+M",       value: kryshka },
+    { label: "Загальна пляшка", formula: "E+F+G+I+J+K+L+M", value: flakon },
+    { label: "Етикетка",        formula: "H",                 value: etyketka },
+    { label: "Стікери",         formula: "N",                 value: stiker },
+  ];
+
+  const grid = document.getElementById("summaryGrid");
+  grid.innerHTML = "";
+  results.forEach(r => {
+    const item = document.createElement("div");
+    item.className = "summary-item";
+    item.innerHTML = `<div class="lbl">${r.label}</div><div class="formula">${r.formula}</div><div class="num">${r.value}</div>`;
+    grid.appendChild(item);
+  });
+
+  document.getElementById("resultMeta").textContent = `${master} · ${product} · ${seria}`;
+  document.getElementById("totalBrak").textContent = totalBrak;
+  document.getElementById("resultCard").style.display = "block";
+}
+
+function showStatus(t, c) {
+  const s = document.getElementById("status");
+  s.textContent = t; s.className = `status ${c}`;
+}
+</script>
+</body>
+</html>

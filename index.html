@@ -36,7 +36,7 @@
   }
   .field { margin-bottom: 12px; }
   label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 5px; }
-  
+
   select, input {
     width: 100%;
     background: #1a1f2e;
@@ -50,31 +50,32 @@
   select:focus, input:focus { border-color: #e85d26; }
   .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-  /* ПІДКАЗКА ТА РЕЗУЛЬТАТ (КОЛОНКОВИЙ ПОРЯДОК) */
-  .brak-hint, .brak-parsed {
-    display: grid;
-    /* Головна фішка: заповнюємо спочатку колонку, а не рядок */
-    grid-auto-flow: column; 
-    /* Встановлюємо 6 рядків (щоб 11 категорій влізли у 2 колонки: 6 в першу, 5 в другу) */
-    grid-template-rows: repeat(6, auto); 
-    grid-template-columns: 1fr 1fr;
-    gap: 4px 15px;
-    background: #1a1f2e;
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 0.75rem;
-    color: #64748b;
-    border: 1px solid #2e3548;
+  .seria-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
   }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    margin: 0;
+    cursor: pointer;
+  }
+  .check input[type="checkbox"] { width: auto; margin: 0; }
 
   .brak-parsed {
-    background: transparent;
-    border: none;
-    padding: 0;
-    margin-top: 10px;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(6, auto);
+    grid-template-columns: 1fr 1fr;
     gap: 6px 10px;
+    margin-top: 10px;
   }
-
   .brak-tag {
     background: #1e293b;
     border: 1px solid #334155;
@@ -83,8 +84,10 @@
     display: flex;
     justify-content: space-between;
     color: #cbd5e1;
+    font-size: 0.75rem;
   }
   .brak-tag.error { border-color: #ef4444; color: #fca5a5; }
+  .brak-tag.excluded { opacity: 0.5; }
   .brak-tag b { color: #e85d26; min-width: 18px; display: inline-block; }
   .brak-tag .val { font-weight: 700; color: #f1f5f9; }
 
@@ -111,10 +114,9 @@
     font-size: 0.85rem;
   }
   .status.ok { display: block; background: #064e3b; color: #6ee7b7; }
-  .status.err { display: block; background: #450a0a; color: #a5fcb9; }
+  .status.err { display: block; background: #450a0a; color: #fca5a5; }
   .status.loading { display: block; background: #1e293b; color: #94a3b8; }
 
-  /* --- Блок результатів (з'являється лише після успішного запису) --- */
   .summary-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -177,6 +179,7 @@
           <option>ReO 950</option>
           <option>ReO 1050</option>
           <option>ReO 1500</option>
+          <option>ReO 475</option>
           <option>ReO Лимон</option>
           <option>Ізота</option>
           <option>Емпаті</option>
@@ -188,9 +191,15 @@
         <input type="text" id="seriaManual" placeholder="напр. 16/06/26-3" oninput="updateSeria()" style="display:none; margin-top:8px;">
       </div>
     </div>
-    <div class="field" style="display:flex; align-items:center; gap:8px; margin-top:-4px;">
-      <input type="checkbox" id="manualSeria" onchange="toggleSeriaMode()" style="width:auto; margin:0;">
-      <label style="margin:0; font-size:0.7rem; color:#94a3b8;">Ввести повний номер серії вручну (інший шаблон / інша доба)</label>
+    <div class="seria-options">
+      <label class="check">
+        <input type="checkbox" id="manualSeria" onchange="toggleSeriaMode()">
+        Вручну (інший шаблон / доба)
+      </label>
+      <label class="check">
+        <input type="checkbox" id="exportMode" onchange="updateSeria()">
+        експорт
+      </label>
     </div>
     <div id="seriaPreview" style="font-size: 0.8rem; text-align: center; color: #94a3b8;">Оберіть дані</div>
   </div>
@@ -198,12 +207,11 @@
   <div class="card">
     <div class="section-label">
       Внесіть браки згідно списку в журналі
-      <span id="counter" style="color: #64748b">0 / 11</span>
+      <span id="counter" style="color: #64748b">0 / 12</span>
     </div>
-    
 
     <div class="field" style="margin-top: 15px;">
-      <label>Числа через кому (11 значень)</label>
+      <label>Числа через кому (12 значень)</label>
       <input type="text" id="brakLine" placeholder="0, 0, 5, 10..." oninput="parseBrak()" autocomplete="off" inputmode="decimal">
     </div>
 
@@ -226,14 +234,19 @@
 
 <script>
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx4X-Dz0wBmKNNsyd2v01wgD8kLoJoAj54oVuAxt2mIYrVoYaDgoasqoV1YC-Plbg3yJw/exec";
-const BRAK_TYPES = ["кришка", "флакон", "замивка", "видув", "етикетка", "включення", "без кришки", "деф. кришка", "деф. флакон", "недолив", "стікер"];
+const BRAK_TYPES = [
+  "кришка", "флакон", "замивка", "видув", "етикетка", "маркування",
+  "включення", "без кришки", "деф. кришка", "деф. флакон", "недолив", "стікер"
+];
+const BRAK_COUNT = BRAK_TYPES.length; // 12
+// Маркування не йде в розрахунки (індекс 5)
+const EXCLUDED_IDX = 5;
 
 // --- Telegram Web App init ---
 const tg = window.Telegram ? window.Telegram.WebApp : null;
 if (tg) {
   tg.ready();
   tg.expand();
-  // Підлаштування фону/шапки під тему Telegram (тут лишаємо власну темну тему форми)
   try { tg.setHeaderColor("#1a1f2e"); } catch(e) {}
   try { tg.setBackgroundColor("#1a1f2e"); } catch(e) {}
 } else {
@@ -257,13 +270,20 @@ function toggleSeriaMode() {
   updateSeria();
 }
 
+// Приставка "L" за замовчуванням; чекбокс "експорт" її прибирає
+function seriaPrefix() {
+  return document.getElementById("exportMode").checked ? "" : "L";
+}
+
 function updateSeria() {
   const target = document.getElementById("seriaPreview");
   const manual = document.getElementById("manualSeria").checked;
+  const pre = seriaPrefix();
 
   if (manual) {
-    const val = document.getElementById("seriaManual").value.trim();
-    if (!val) { target.innerHTML = "Оберіть дані"; return; }
+    const raw = document.getElementById("seriaManual").value.trim();
+    if (!raw) { target.innerHTML = "Оберіть дані"; return; }
+    const val = pre + raw.replace(/^L/i, "");
     target.innerHTML = `Серія: <b style="color:#e85d26; font-family:monospace;">${val}</b>`;
     return;
   }
@@ -273,9 +293,7 @@ function updateSeria() {
   if (!p || !n) { target.innerHTML = "Оберіть дані"; return; }
   const d = new Date();
   const ds = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`;
-  const pref = p === "ReO Лимон" ? "L" : "";
-  const pref1 = p === "Емпаті" ? "L" : "";
-  target.innerHTML = `Серія: <b style="color:#e85d26; font-family:monospace;">${pref}${pref1}${ds}-${n}</b>`;
+  target.innerHTML = `Серія: <b style="color:#e85d26; font-family:monospace;">${pre}${ds}-${n}</b>`;
 }
 
 function parseBrak() {
@@ -283,16 +301,16 @@ function parseBrak() {
   const raw = valString.split(',').map(s => s.trim()).filter(s => s !== "");
   const cont = document.getElementById("brakParsed");
   const cnt = document.getElementById("counter");
-  
+
   cont.innerHTML = "";
-  cnt.textContent = `${raw.length} / 11`;
-  cnt.style.color = raw.length === 11 ? "#22c55e" : "#ef4444";
+  cnt.textContent = `${raw.length} / ${BRAK_COUNT}`;
+  cnt.style.color = raw.length === BRAK_COUNT ? "#22c55e" : "#ef4444";
 
   BRAK_TYPES.forEach((name, i) => {
     const val = raw[i];
     const ok = val !== undefined && val !== "" && !isNaN(val);
     const tag = document.createElement("div");
-    tag.className = `brak-tag ${!ok && raw.length > i ? 'error' : ''}`;
+    tag.className = `brak-tag ${!ok && raw.length > i ? 'error' : ''} ${i === EXCLUDED_IDX ? 'excluded' : ''}`;
     tag.innerHTML = `<span><b>${i+1}.</b> ${name}</span> <span class="val">${ok ? val : '?'}</span>`;
     cont.appendChild(tag);
   });
@@ -307,10 +325,10 @@ async function sendData() {
   const raw = document.getElementById("brakLine").value.split(',').map(s => s.trim()).filter(s => s !== "");
 
   if (!master || !product || (manual ? !manualVal : !num)) { showStatus("Заповніть інформацію!", "err"); haptic("error"); return; }
-  if (raw.length !== 11) { showStatus(`Введено ${raw.length} з 11 чисел!`, "err"); haptic("error"); return; }
+  if (raw.length !== BRAK_COUNT) { showStatus(`Введено ${raw.length} з ${BRAK_COUNT} чисел!`, "err"); haptic("error"); return; }
 
-  const braky = raw.map(v => parseInt(v));
-  const totalBrak = braky.reduce((a, b) => a + b, 0);
+  const braky = raw.map(v => parseInt(v) || 0);
+  const totalBrak = braky.reduce((a, b, i) => i === EXCLUDED_IDX ? a : a + b, 0);
   const seria = document.getElementById("seriaPreview").innerText.replace("Серія: ", "");
 
   const btn = document.getElementById("btnSend");
@@ -341,20 +359,23 @@ async function sendData() {
   }
 }
 
-// Виводиться ТІЛЬКИ після успішного запису в таблицю (викликається з sendData вище)
+// Виводиться ТІЛЬКИ після успішного запису в таблицю
 function showSummary(master, product, seria, braky, totalBrak) {
-  const [D, E, F, G, H, I, J, K, L, M, N] = braky;
+  // Індекси: 0 кришка(D), 1 флакон(E), 2 замивка(F), 3 видув(G), 4 етикетка(H),
+  // 5 маркування(I) — не рахується, 6 включення(J), 7 без кришки(K),
+  // 8 деф. кришка(L), 9 деф. флакон(M), 10 недолив(N), 11 стікер(O)
+  const b = braky;
 
-  const kryshka  = D + I + K + L + M;
-  const flakon   = E + F + G + I + J + K + L + M;
-  const etyketka = H;
-  const stiker   = N;
+  const kryshka  = b[0] + b[6] + b[8] + b[9] + b[10];                       // D+J+L+M+N
+  const flakon   = b[1] + b[2] + b[3] + b[6] + b[7] + b[8] + b[9] + b[10];  // E+F+G+J+K+L+M+N
+  const etyketka = b[4];                                                    // H
+  const stiker   = b[11];                                                   // O
 
   const results = [
-    { label: "Загальна кришка", formula: "D+I+K+L+M",       value: kryshka },
-    { label: "Загальна пляшка", formula: "E+F+G+I+J+K+L+M", value: flakon },
-    { label: "Етикетка",        formula: "H",                 value: etyketka },
-    { label: "Стікери",         formula: "N",                 value: stiker },
+    { label: "Загальна кришка", formula: "D+J+L+M+N",       value: kryshka },
+    { label: "Загальна пляшка", formula: "E+F+G+J+K+L+M+N", value: flakon },
+    { label: "Етикетка",        formula: "H",               value: etyketka },
+    { label: "Стікери",         formula: "O",               value: stiker },
   ];
 
   const grid = document.getElementById("summaryGrid");
@@ -375,6 +396,9 @@ function showStatus(t, c) {
   const s = document.getElementById("status");
   s.textContent = t; s.className = `status ${c}`;
 }
+
+// Початковий стан
+parseBrak();
 </script>
 </body>
 </html>
